@@ -1,0 +1,595 @@
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02
+OBJECT MODULE PLACED IN XeDoLine.OBJ
+ASSEMBLER INVOKED BY: C:\Keil\C51\BIN\A51.EXE XeDoLine.a51 SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ; Xe do line su dung cam bien hong ngoai
+                       2     ;
+                       3     ;Written by: HUYNH DANG KHOA    11:11PM         08/06/2022
+                       4     ;=====================================================
+                       5     
+                       6     ;---------------------------
+                       7     ;LCD
+  0080                 8     BUS_LCD                 EQU             P0
+  00B6                 9     EN                              BIT             P3.6
+  00B7                10     RS                              BIT             P3.7
+                      11     ;---------------------------
+                      12     
+  0000                13     FLAG0                   BIT             00H                             ;PWM, =1 THI PWM KH
+                             I DANG MUC 1, =0 KHI PWM DANG MUC 0
+  0001                14     FLAG1                   BIT             01H                             ;MOTOR TRAI
+  0002                15     FLAG2                   BIT             02H                             ;MOTOR PHAI
+  0003                16     FLAG3                   BIT             03H                             ;CO IN/OUT
+  0004                17     FLAG4                   BIT             04H                             ;CO LEFT/RIGHT
+  0005                18     FLAG5                   BIT             05H                             ;PREVIOUS STATE CUA
+                              FLAG3
+  0006                19     FLAG6                   BIT             06H                             ;
+  0007                20     FLAG7                   BIT             07H                             ;
+                      21     ;--------------------------
+                      22     
+                      23     
+  0092                24     L_SENSOR                BIT             P1.2
+  0093                25     R_SENSOR                BIT             P1.3
+  0094                26     IN1                             BIT             P1.4
+  0095                27     IN2                             BIT             P1.5
+  0096                28     IN3                             BIT             P1.6
+  0097                29     IN4                             BIT             P1.7
+                      30     
+  0090                31     P_MOTOR                 EQU             P1
+                      32     
+                      33     ;===================================================================
+0000                  34                                     ORG     0000H
+0000 020033           35                                     lJMP    MAIN
+0003 020166           36                                     LJMP    INT0_ISR
+                      37     
+000B                  38                                     ORG             000BH
+000B 0201B2           39                                     LJMP    T0_ISR
+                      40     
+0013                  41                                     ORG     0013H
+0013 020208           42                                     LJMP    INT1_ISR
+                      43     
+001B                  44                                     ORG             001BH
+001B 020209           45                                     LJMP    T1_ISR
+                      46     
+0023                  47                                     ORG     0023H
+0023 020261           48                                     LJMP    SPI_ISR
+                      49                                                             
+                      50     ;=============================================
+0033                  51                                     ORG     0033H
+0033                  52     MAIN:           
+0033 75814F           53                                     MOV     SP,#4FH
+                      54     
+                      55     
+                      56                                     ;---------------------
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     2
+
+0036 312E             57                                     CALL    INITIAL                                 ;LCD    
+0038 900090           58                                     MOV             DPTR,#TAB_LINE1
+003B 11B0             59                                     CALL    PRINT_LINE
+                      60     
+003D 74C0             61                                     MOV             A,#0C0H
+003F 3151             62                                     CALL    DELAY_2MS
+0041 C2B7             63                                     CLR             RS
+0043 315F             64                                     CALL    WRITE_OUT
+                      65     
+0045 9000A0           66                                     MOV             DPTR,#TAB_LINE2
+0048 11B0             67                                     CALL    PRINT_LINE
+                      68                                     ;---------------------
+004A D2AF             69                                     SETB    EA                                              ;NG
+                             AT TOAN CUC
+004C 75B802           70                                     MOV             IP,#02H                                 ;UU
+                              TIEN NGAT T0
+                      71                                     ;----------------
+004F 758911           72                                     MOV             TMOD,#11H                               ;T1
+                              ADC / T0 PWM                                                                                                        
+                      73                                     ;----------------------
+                      74                                                                                                
+                                  ;2 DONG CO
+0052 7530FD           75                                     MOV             30H,#HIGH(-720)                 ;FFB0H = -8
+                             0
+0055 753130           76                                     MOV             31H,#LOW(-720)
+0058 7532FF           77                                     MOV             32H,#HIGH(-80)                  ;FD30H = -7
+                             20
+005B 7533B0           78                                     MOV             33H,#LOW(-80)
+005E 753409           79                                     MOV             34H,#9
+                      80                                     ;----------------------
+0061 D2A9             81                                     SETB    ET0
+0063 D28D             82                                     SETB    TF0                                     ;EP NGAT TI
+                             MER 0
+                      83                                     ;------------------
+0065 D288             84                                     SETB    IT0                                     ;NGAT CANH 
+                             XUONG
+0067 D2A8             85                                     SETB    EX0
+                      86                                     ;-------------------
+0069 D2AB             87                                     SETB    ET1
+006B D28E             88                                     SETB    TR1                                     ;EP NGAT TI
+                             MER 1
+                      89                                     ;------------------
+                      90     
+006D                  91     LOOP_00:                
+006D E534             92                                     MOV             A,34H
+006F B53502           93                                     CJNE    A,35H,SPEED_CHANGE
+0072 8005             94                                     SJMP    LOOP_01
+                      95     
+0074                  96     SPEED_CHANGE:   
+0074 853435           97                                     MOV             35H,34H                 ;SAVE OLD STATE
+0077 11F8             98                                     CALL    WRITE_SPEED
+                      99                                     ;--------------                 FLAG3 XOR  FLAG5
+0079                 100     LOOP_01:                
+0079 A203            101                                     MOV             C,FLAG3
+007B 5005            102                                     JNC             LOOP_02                         
+007D A205            103                                     MOV             C,FLAG5
+007F B3              104                                     CPL             C
+0080 8002            105                                     JMP             LOOP_03                                 
+0082 A205            106     LOOP_02:                MOV             C,FLAG5
+                     107                                     ;-------------
+0084                 108     LOOP_03:                
+0084 50E7            109                                     JNC             LOOP_00
+                     110                                     
+0086 A203            111                                     MOV             C,FLAG3                 ;SAVE OLD STATE
+0088 9205            112                                     MOV             FLAG5,C
+008A D2AF            113                                     SETB    EA
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     3
+
+008C 11D4            114                                     CALL    WRITE_STATE     
+                     115                                                                                       
+008E 80DD            116                                     SJMP    LOOP_00
+                     117     
+                     118                                     
+0090 53544154        119     TAB_LINE1:              DB              'STATE :     LINE'
+0094 45203A20                
+0098 20202020                
+009C 4C494E45                
+00A0 53504545        120     TAB_LINE2:              DB              'SPEED :        %'
+00A4 44203A20                
+00A8 20202020                
+00AC 20202025                
+                     121     
+                     122     ;=========================================================
+00B0 7810            123     PRINT_LINE:             MOV             R0,#16
+00B2 7400            124                                     MOV             A,#0
+00B4 C0E0            125     PRINT_LINE_1:   PUSH    ACC
+00B6 11BE            126                                     CALL    PRINT_CHAR
+00B8 D0E0            127                                     POP             ACC
+00BA 04              128                                     INC             A
+00BB D8F7            129                                     DJNZ    R0,PRINT_LINE_1
+00BD 22              130                                     RET
+                     131     
+                     132     ;=========================================
+00BE                 133     PRINT_CHAR:     
+00BE 93              134                                     MOVC    A,@A+DPTR
+00BF B40002          135                                     CJNE    A,#00H,PRINT_CHAR1
+00C2 D3              136                                     SETB    C
+00C3 22              137                                     RET
+00C4 3151            138     PRINT_CHAR1:    CALL    DELAY_2MS
+00C6 D2B7            139                                     SETB    RS
+00C8 C083            140                                     PUSH    DPH
+00CA C082            141                                     PUSH    DPL
+00CC 315F            142                                     CALL    WRITE_OUT
+00CE D082            143                                     POP             DPL
+00D0 D083            144                                     POP             DPH
+00D2 C3              145                                     CLR             C
+00D3 22              146     PRINT_CHAR2:    RET
+                     147     ;--------------------------------------------
+                     148     
+00D4                 149     WRITE_STATE:                                    
+00D4 7488            150                                     MOV             A,#88H                  ;CHUYEN CON TRO VE 
+                             08H
+00D6 3151            151                                     CALL    DELAY_2MS                               
+00D8 C2B7            152                                     CLR             RS
+00DA 315F            153                                     CALL    WRITE_OUT
+                     154     
+00DC 20050B          155                                     JB              FLAG5,IN_LINE
+                     156     
+00DF 75394F          157                                     MOV             39H,#'O'
+00E2 753A55          158                                     MOV             3AH,#'U'
+00E5 753B54          159                                     MOV             3BH,#'T'                                   
+                                                          
+00E8 8009            160                                     JMP             EXIT_WRITE_STATE
+00EA                 161     IN_LINE:
+00EA 753920          162                                     MOV             39H,#' '
+00ED 753A49          163                                     MOV             3AH,#'I'
+00F0 753B4E          164                                     MOV             3BH,#'N'
+                     165                                     
+00F3                 166     EXIT_WRITE_STATE:
+00F3 7939            167                                     MOV             R1,#39H                                    
+                                                          
+00F5 3121            168                                     CALL    WRITE_RAM
+00F7 22              169                                     RET
+                     170     ;---------------------------------------------
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     4
+
+00F8                 171     WRITE_SPEED:
+00F8 74CC            172                                     MOV             A,#0CCH                 ;CHUYEN CON TRO VE 
+                             4CH
+00FA 3151            173                                     CALL    DELAY_2MS                               
+00FC C2B7            174                                     CLR             RS
+00FE 315F            175                                     CALL    WRITE_OUT
+                     176     
+0100 E535            177                                     MOV             A,35H                           
+0102 B40A0B          178                                     CJNE    A,#10,WRITE_SPEED_00
+                     179     
+0105 753631          180                                     MOV             36H,#'1'
+0108 753730          181                                     MOV             37H,#'0'
+010B 753830          182                                     MOV             38H,#'0'                                   
+                                                          
+010E 800C            183                                     JMP             WRITE_SPEED_01
+                     184                                     
+0110                 185     WRITE_SPEED_00:
+0110 753620          186                                     MOV             36H,#' '
+0113 7430            187                                     MOV             A,#30H
+0115 2535            188                                     ADD             A,35H
+0117 F537            189                                     MOV             37H,A
+0119 753830          190                                     MOV             38H,#'0'
+                     191                                     
+011C 7936            192     WRITE_SPEED_01: MOV             R1,#36H                                                    
+                                  
+011E 3121            193                                     CALL    WRITE_RAM                       
+0120 22              194                                     RET
+                     195                                     ;--------------------------
+0121                 196     WRITE_RAM:                                                                                 
+                                          ;NAP R1 VO TRUOC KHI CALL
+                     197                                     ;MOV            R1,#36H
+0121 7A03            198                                     MOV             R2,#3
+0123 E7              199     WRITE_RAM_00:   MOV             A,@R1
+0124 3151            200                                     CALL    DELAY_2MS
+0126 D2B7            201                                     SETB    RS
+0128 315F            202                                     CALL    WRITE_OUT
+012A 09              203                                     INC             R1
+012B DAF6            204                                     DJNZ    R2,WRITE_RAM_00
+012D 22              205                                     RET
+                     206     ;---------------------------------------------
+                     207     
+012E                 208     INITIAL:                
+012E C2B6            209                                     CLR             EN                                         
+                                                  ;do EN tich cu muc cao (khong co lenh nay cung khong sao)
+0130 7438            210                                     MOV             A,#38H                  ;8 bits 5x8 dots
+0132 3151            211                                     CALL    DELAY_2MS
+0134 C2B7            212                                     CLR             RS
+0136 315F            213                                     CALL    WRITE_OUT
+                     214                                     ;----------------
+0138 7401            215                                     MOV             A,#01H                  ;clscr
+013A 3151            216                                     CALL    DELAY_2MS
+013C C2B7            217                                     CLR             RS
+013E 315F            218                                     CALL    WRITE_OUT
+                     219                                     ;----------------
+0140 740F            220                                     MOV             A,#0FH                  ;Hien man hinh, cho
+                             p ky tu
+0142 3151            221                                     CALL    DELAY_2MS
+0144 C2B7            222                                     CLR             RS
+0146 315F            223                                     CALL    WRITE_OUT
+                     224                                     ;----------------
+0148 7406            225                                     MOV             A,#06H                  ;Dich con tro sang 
+                             phai (khi ghi/doc data)
+014A 3151            226                                     CALL    DELAY_2MS
+014C C2B7            227                                     CLR             RS
+014E 315F            228                                     CALL    WRITE_OUT
+                     229                                     ;----------------
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     5
+
+0150 22              230                                     RET
+                     231      ;---------------------------------------------------------------
+0151                 232     DELAY_2MS:              
+0151 7F04            233                                     MOV             R7,#4
+0153 7EFA            234     DELAY_2MS_0:    MOV             R6,#250
+0155 DEFE            235                                     DJNZ    R6,$
+0157 DFFA            236                                     DJNZ    R7,DELAY_2MS_0
+0159 22              237                                     RET
+                     238                                     ;---------------------
+                     239     
+015A                 240     DELAY_120us:    
+015A 7D3C            241                                     MOV             R5,#60
+015C DDFE            242                                     DJNZ    R5,$
+015E 22              243                                     RET
+                     244     ;-----------------------------------------------------------------
+                     245     
+015F                 246     WRITE_OUT:              
+015F F580            247                                     MOV             BUS_LCD,A
+0161 D2B6            248                                     SETB    EN
+0163 C2B6            249                                     CLR             EN
+0165 22              250                                     RET
+                     251     ;============================================
+                     252     
+0166                 253     INT0_ISR:       
+0166 C0E0            254                                     PUSH    ACC
+0168 C0D0            255                                     PUSH    PSW     
+016A C082            256                                     PUSH    82H
+016C C083            257                                     PUSH    83H                     
+016E C2A9            258                                     CLR             ET0
+                     259     
+0170 7B32            260                                     MOV             R3,#50
+0172 D2B2            261                                     SETB    P3.2                                    ;DUA CHOT P
+                             ORT LEN 1 ROI MOI DOC
+0174 A2B2            262     CHECK_SW:               MOV             C,P3.2
+0176 402F            263                             JC              EXIT_INT0_ISR
+0178 DBFA            264                                     DJNZ    R3,CHECK_SW
+                     265                                     
+017A 0534            266                                     INC             34H
+017C E534            267                                     MOV             A,34H
+                     268     
+017E B40B11          269                                     CJNE    A,#11,INT0_ISR_0
+0181 753401          270                                     MOV             34H,#1
+0184 7530FF          271                                     MOV             30H,#HIGH(-80)                  ;FFB0H = -8
+                             0
+0187 7531B0          272                                     MOV             31H,#LOW(-80)
+018A 7532FD          273                                     MOV             32H,#HIGH(-720)                 ;FD30H = -7
+                             20
+018D 753330          274                                     MOV             33H,#LOW(-720)
+                     275     
+0190 8015            276                                     SJMP    EXIT_INT0_ISR
+0192                 277     INT0_ISR_0:                                     
+0192 E531            278                                     MOV             A,31H
+0194 C3              279                                     CLR             C
+0195 9450            280                                     SUBB    A,#80
+0197 5002            281                                     JNC             INT0_ISR_1
+0199 1530            282                                     DEC             30H
+019B F531            283     INT0_ISR_1:             MOV             31H,A
+                     284     
+019D E533            285                                     MOV             A,33H
+019F 2450            286                                     ADD             A,#80
+01A1 5002            287                                     JNC             INT0_ISR_2
+01A3 0532            288                                     INC             32H
+01A5 F533            289     INT0_ISR_2:             MOV             33H,A
+                     290                                     
+01A7                 291     EXIT_INT0_ISR:  
+01A7 D2A9            292                                     SETB    ET0
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     6
+
+01A9 D083            293                                     POP             83H
+01AB D082            294                                     POP             82H
+01AD D0D0            295                                     POP             PSW
+01AF D0E0            296                                     POP             ACC
+01B1 32              297                                     RETI
+                     298     ;=============================================
+                     299     
+01B2                 300     T0_ISR:                                                                                    
+                                  ;0.8 MS = 1.25 KHZ
+01B2 C0E0            301                                     PUSH    ACC
+01B4 C0D0            302                                     PUSH    PSW
+01B6 C082            303                                     PUSH    82H
+01B8 C083            304                                     PUSH    83H
+01BA C2AF            305                                     CLR             EA
+                     306     
+01BC C28C            307                                     CLR             TR0
+01BE E534            308                                     MOV             A,34H
+01C0 B40A0C          309                                     CJNE    A,#10,T0_ISR_01
+                     310     
+01C3 85FC8C          311                                     MOV             TH0,HIGH(-800)                             
+                                                                                  
+01C6 85E08A          312                                     MOV             TL0,LOW(-800)
+                     313     
+01C9 D28C            314                                     SETB    TR0
+01CB D200            315                                     SETB    FLAG0
+01CD 801B            316                                     JMP             RUN_MOTOR
+                     317                                     ;---------------------------
+                     318     
+01CF 30000C          319     T0_ISR_01:              JNB             FLAG0,NON_DUTY
+                     320     
+01D2 C200            321                                     CLR             FLAG0
+01D4 85308C          322                                     MOV             TH0,30H                                    
+                                  ;THOI GIAN MUC 0                                        
+01D7 85318A          323                                     MOV             TL0,31H
+01DA D28C            324                                     SETB    TR0
+                     325                                     
+01DC 800C            326                                     JMP             RUN_MOTOR
+                     327                                     ;---------------------------
+01DE                 328     NON_DUTY:               
+01DE D200            329                                     SETB    FLAG0
+                     330     
+01E0 85328C          331                                     MOV             TH0,32H                                    
+                                  ;THOI GIAN MUC 1
+01E3 85338A          332                                     MOV             TL0,33H
+01E6 D28C            333                                     SETB    TR0
+                     334                                     
+01E8 8010            335                                     JMP             STOP_MOTOR
+                     336                                     ;---------------------------
+01EA                 337     RUN_MOTOR:              
+01EA 300104          338                                     JNB             FLAG1,RUN_MOTOR_1
+01ED D294            339                                     SETB    IN1                                             ;CH
+                             AY BANH TRAI  ;1 QUAY THUAN
+01EF C295            340                                     CLR             IN2
+                     341     
+01F1 300209          342     RUN_MOTOR_1:    JNB             FLAG2,EXIT_T0_ISR
+01F4 D296            343                                     SETB    IN3                                             ;CH
+                             AY BANH PHAI
+01F6 C297            344                                     CLR             IN4
+                     345     
+01F8 8003            346                                     SJMP    EXIT_T0_ISR
+                     347                                     ;--------------------------
+01FA                 348     STOP_MOTOR:
+01FA 53900F          349                                     ANL             P_MOTOR,#0FH
+                     350     
+01FD                 351     EXIT_T0_ISR:
+01FD D083            352                                     POP             83H
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     7
+
+01FF D082            353                                     POP             82H
+0201 D0D0            354                                     POP             PSW
+0203 D0E0            355                                     POP             ACC
+0205 D2AF            356                                     SETB    EA
+0207 32              357                                     RETI
+                     358     ;=============================================
+0208                 359     INT1_ISR:       
+                     360     
+0208 32              361                                     RETI
+                     362     ;=============================================
+0209                 363     T1_ISR:         
+0209 C0E0            364                                     PUSH    ACC
+020B C0D0            365                                     PUSH    PSW     
+020D C082            366                                     PUSH    82H
+020F C083            367                                     PUSH    83H                     
+                     368     
+0211 C28E            369                                     CLR             TR1                             
+0213 85FC8D          370                                     MOV             TH1,HIGH(-1000)
+0216 85188B          371                                     MOV             TL1,LOW(-1000)
+0219 D28E            372                                     SETB    TR1
+                     373     
+021B C2AF            374                                     CLR             EA
+021D D292            375                                     SETB    L_SENSOR
+021F A292            376                                     MOV             C,L_SENSOR
+0221 9201            377                                     MOV             FLAG1,C
+                     378                                     
+0223 D293            379                                     SETB    R_SENSOR
+0225 A293            380                                     MOV             C,R_SENSOR
+0227 9202            381                                     MOV             FLAG2,C
+                     382                                     ;-----------------
+                     383     
+0229 A201            384                                     MOV             C,FLAG1
+022B 5005            385                                     JNC             T1_ISR_01                               
+022D A202            386                                     MOV             C,FLAG2
+022F B3              387                                     CPL             C
+0230 8002            388                                     JMP             T1_ISR_02                                  
+                                  
+0232 A202            389     T1_ISR_01:              MOV             C,FLAG2
+                     390                                     ;-------------
+0234                 391     T1_ISR_02:
+0234 400F            392                                     JC              T1_ISR_03
+0236 D201            393                                     SETB    FLAG1                                   ;GIONG, CUN
+                             G TRONG CUNG NGOAI => CHAY THANG
+0238 D202            394                                     SETB    FLAG2
+                     395     
+023A 300104          396                                     JNB             FLAG1,CLR_FLAG3
+023D D203            397                                     SETB    FLAG3
+023F 8015            398                                     JMP             EXIT_T1_ISR
+                     399     
+0241 C203            400     CLR_FLAG3:              CLR             FLAG3
+0243 8011            401                                     JMP             EXIT_T1_ISR
+0245                 402     T1_ISR_03:
+0245 300108          403                                     JNB             FLAG1,TURN_RIGHT
+0248 C201            404                                     CLR             FLAG1                                   ;TU
+                             RN LEFT
+024A D202            405                                     SETB    FLAG2
+024C C203            406                                     CLR             FLAG3
+024E 8006            407                                     JMP             EXIT_T1_ISR
+0250                 408     TURN_RIGHT:
+0250 D201            409                                     SETB    FLAG1
+0252 C202            410                                     CLR             FLAG2
+0254 D203            411                                     SETB    FLAG3
+0256                 412     EXIT_T1_ISR:                            
+0256 D083            413                                     POP             83H
+0258 D082            414                                     POP             82H
+025A D0D0            415                                     POP             PSW
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     8
+
+025C D0E0            416                                     POP             ACC     
+025E D2AF            417                                     SETB    EA                      
+0260 32              418                                     RETI
+                     419     
+                     420     
+                     421     ;=============================================                          
+0261                 422     SPI_ISR:                
+                     423             
+0261 32              424                                     RETI    
+                     425                                                                                                
+                                                                                          
+                     426                                     END
+                             
+                             
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE     9
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+ACC. . . . . . . .  D ADDR   00E0H   A   
+BUS_LCD. . . . . .  D ADDR   0080H   A   
+CHECK_SW . . . . .  C ADDR   0174H   A   
+CLR_FLAG3. . . . .  C ADDR   0241H   A   
+DELAY_120US. . . .  C ADDR   015AH   A   
+DELAY_2MS. . . . .  C ADDR   0151H   A   
+DELAY_2MS_0. . . .  C ADDR   0153H   A   
+DPH. . . . . . . .  D ADDR   0083H   A   
+DPL. . . . . . . .  D ADDR   0082H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+EN . . . . . . . .  B ADDR   00B0H.6 A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+ET1. . . . . . . .  B ADDR   00A8H.3 A   
+EX0. . . . . . . .  B ADDR   00A8H.0 A   
+EXIT_INT0_ISR. . .  C ADDR   01A7H   A   
+EXIT_T0_ISR. . . .  C ADDR   01FDH   A   
+EXIT_T1_ISR. . . .  C ADDR   0256H   A   
+EXIT_WRITE_STATE .  C ADDR   00F3H   A   
+FLAG0. . . . . . .  B ADDR   0020H.0 A   
+FLAG1. . . . . . .  B ADDR   0020H.1 A   
+FLAG2. . . . . . .  B ADDR   0020H.2 A   
+FLAG3. . . . . . .  B ADDR   0020H.3 A   
+FLAG4. . . . . . .  B ADDR   0020H.4 A   
+FLAG5. . . . . . .  B ADDR   0020H.5 A   
+FLAG6. . . . . . .  B ADDR   0020H.6 A   
+FLAG7. . . . . . .  B ADDR   0020H.7 A   
+IN1. . . . . . . .  B ADDR   0090H.4 A   
+IN2. . . . . . . .  B ADDR   0090H.5 A   
+IN3. . . . . . . .  B ADDR   0090H.6 A   
+IN4. . . . . . . .  B ADDR   0090H.7 A   
+INITIAL. . . . . .  C ADDR   012EH   A   
+INT0_ISR . . . . .  C ADDR   0166H   A   
+INT0_ISR_0 . . . .  C ADDR   0192H   A   
+INT0_ISR_1 . . . .  C ADDR   019BH   A   
+INT0_ISR_2 . . . .  C ADDR   01A5H   A   
+INT1_ISR . . . . .  C ADDR   0208H   A   
+IN_LINE. . . . . .  C ADDR   00EAH   A   
+IP . . . . . . . .  D ADDR   00B8H   A   
+IT0. . . . . . . .  B ADDR   0088H.0 A   
+LOOP_00. . . . . .  C ADDR   006DH   A   
+LOOP_01. . . . . .  C ADDR   0079H   A   
+LOOP_02. . . . . .  C ADDR   0082H   A   
+LOOP_03. . . . . .  C ADDR   0084H   A   
+L_SENSOR . . . . .  B ADDR   0090H.2 A   
+MAIN . . . . . . .  C ADDR   0033H   A   
+NON_DUTY . . . . .  C ADDR   01DEH   A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PRINT_CHAR . . . .  C ADDR   00BEH   A   
+PRINT_CHAR1. . . .  C ADDR   00C4H   A   
+PRINT_CHAR2. . . .  C ADDR   00D3H   A   
+PRINT_LINE . . . .  C ADDR   00B0H   A   
+PRINT_LINE_1 . . .  C ADDR   00B4H   A   
+PSW. . . . . . . .  D ADDR   00D0H   A   
+P_MOTOR. . . . . .  D ADDR   0090H   A   
+RS . . . . . . . .  B ADDR   00B0H.7 A   
+RUN_MOTOR. . . . .  C ADDR   01EAH   A   
+RUN_MOTOR_1. . . .  C ADDR   01F1H   A   
+R_SENSOR . . . . .  B ADDR   0090H.3 A   
+A51 MACRO ASSEMBLER  XEDOLINE                                                             06/12/2022 03:09:08 PAGE    10
+
+SP . . . . . . . .  D ADDR   0081H   A   
+SPEED_CHANGE . . .  C ADDR   0074H   A   
+SPI_ISR. . . . . .  C ADDR   0261H   A   
+STOP_MOTOR . . . .  C ADDR   01FAH   A   
+T0_ISR . . . . . .  C ADDR   01B2H   A   
+T0_ISR_01. . . . .  C ADDR   01CFH   A   
+T1_ISR . . . . . .  C ADDR   0209H   A   
+T1_ISR_01. . . . .  C ADDR   0232H   A   
+T1_ISR_02. . . . .  C ADDR   0234H   A   
+T1_ISR_03. . . . .  C ADDR   0245H   A   
+TAB_LINE1. . . . .  C ADDR   0090H   A   
+TAB_LINE2. . . . .  C ADDR   00A0H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TH1. . . . . . . .  D ADDR   008DH   A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TL1. . . . . . . .  D ADDR   008BH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+TR1. . . . . . . .  B ADDR   0088H.6 A   
+TURN_RIGHT . . . .  C ADDR   0250H   A   
+WRITE_OUT. . . . .  C ADDR   015FH   A   
+WRITE_RAM. . . . .  C ADDR   0121H   A   
+WRITE_RAM_00 . . .  C ADDR   0123H   A   
+WRITE_SPEED. . . .  C ADDR   00F8H   A   
+WRITE_SPEED_00 . .  C ADDR   0110H   A   
+WRITE_SPEED_01 . .  C ADDR   011CH   A   
+WRITE_STATE. . . .  C ADDR   00D4H   A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)
